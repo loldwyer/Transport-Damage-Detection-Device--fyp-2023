@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<!-- M. Gill 2020 -->
+<html>
+  <head>
+    <title>Sensor JSON MSP</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+	</head><h1>Transport Damage Detection</h1>
+
+    <style>
+		
+      body {
+	        overflow-y: scroll;   //enable scrolling through the webpage
+	        padding: 0px;
+			background-color:#82CAFF ; //blue
+      }
+
+      h1 {
+        font-size: 28px;
+        margin-top: 0;
+		text-align: center
+      }
+
+      p {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+
+      #log {
+        margin-top: 20px;
+        padding: 10px;
+        background-color: #f2f2f2;
+        border-radius: 5px;
+      }
+
+      #log ul {
+        list-style-type: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      #log li {
+        font-size: 16px;
+        margin-bottom: 5px;
+      }
+
+      #log li.error {
+        color: #f00;
+      }
+
+      #client_count,
+	  #Accelerometer,
+      #PalletNumber,
+      #EmpName,
+      #EmpID	  {
+        font-weight: bold;
+        color: #333;
+        font-size: 18px;z
+		display: inline-block;
+      }
+	  
+	  #submitNote{
+	       background-color: #00BFFF;
+             border: none; 
+			 border-radius: 25px;
+			 color: white; 
+			 padding: 10px 20px; 
+			 text-align: center; 
+			 font-size: 14px; 
+			 margin: 4px 2px; 
+			 cursor: pointer;		   
+			 }
+			 
+	#CEbut, #CPNbut ,#Printbut, #downloadLog, #catLog, #displayLogButton, #downloadEmployeeLog
+	  { 
+
+  background-color: #00BFFF;
+
+  border: none; 
+  border-radius: 25px;
+  color: white; 
+  padding: 10px 20px; 
+
+  text-align: center; 
+
+  text-decoration: none; 
+
+  display: inline-block; 
+
+  font-size: 14px; 
+
+  margin: 4px 2px; 
+
+  cursor: pointer; 
+
+}
+    </style>
+	<script>
+$(document).ready(function () {
+  var empName, empID, palletID, logByEmployee = {};;
+
+   
+  function authenticate() {
+    empName = prompt("Please enter your username:");
+    empID = prompt("Please enter your employee ID number:");
+    // check username and password
+    if (empName !== null && empID !== null) {
+    $('#EmpName').html(empName);
+	$('#EmpID').html(empID);
+	
+	// initialize logByEmployee object with empty arrays for each employee
+    if (!(empName in logByEmployee)) {
+      logByEmployee[empName] = [];
+    }
+	
+    // set initial pallet ID
+    if (palletID === null) {
+	  palletID = "error";
+    }
+	//generate a random pallet at login
+	palletID=Math.floor(Math.random() * 100);
+	
+    //start listening for sensor readings
+      socket.on("sensorReadings", function (msg) {
+        // extract values
+        console.log(msg); // log the entire JSON data received
+        console.log(msg.accel); // log the accelerometer value extracted
+        $("#Accelerometer").html(msg.accel);
+        $("#PalletNumber").html(palletID);
+
+        // Check if the acceleration value is classed as excessive
+        if (msg.accel>=1.5) {
+          handleExcessiveAcceleration();
+
+        }
+      });
+    } else {
+      // authentication failed
+      alert("Invalid username or password.");
+    }
+  }
+
+  // connect using socket.io
+  var socket = io();
+  
+  //Change Employee details button
+  $("#CEbut").click(function () {
+  socket.emit('EmpChange',{}); //console log message
+    // prompt user to re-enter username and password
+    authenticate();
+  });
+  
+  //Change Pallet ID button
+  $("#CPNbut").click(function() {
+  socket.emit('PalletChange',{}); //console log message
+	palletID = prompt("Please enter the new pallet ID:");
+
+  });
+ 
+  //Submit note to the log button
+  $("#submitNote").click(function() {
+  socket.emit('LogNote',{}); //console log message
+    var notes = $("#notes").val();
+    if (notes !== "") {
+	
+      var logItem = "\n<li>"+new Date().toLocaleString()+"     NOTE: "+ notes+" ( PALLET: "+palletID+" ) - " + empName + ", " + empID + "</li>\n\n";
+      $("#log").append(logItem);
+      $("#notes").val("");
+    }
+  });
+  
+  //Print this webpage button
+  $("#Printbut").click(function(){
+socket.emit('LogPrint',{});
+window.print();
+});
+  //Download log as displayed to a txt file button
+  $("#downloadLog").click(function () {
+  socket.emit('LogDownloaded',{}); //console log message
+  // create a new text file with the log entries
+  var logText = $("#log").text(); 
+  var file = new Blob([logText], {type: "text/plain"});
+  var a = document.createElement("a");
+  var url = URL.createObjectURL(file);
+  a.href = url;
+  a.download = "log.txt";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 0);
+});
+
+//Download a log that is categorised by employee
+$("#downloadEmployeeLog").click(function () {
+  socket.emit('LogDownloaded',{});
+  // create a new text file with the log entries categorized by employee
+  var logText = "";
+  for (var employee in logByEmployee) {
+    logText += employee+"\n";
+    logText += "--------------------------------------------------\n";
+    for (var i=0; i<logByEmployee[employee].length; i++) {
+      logText += logByEmployee[employee][i]+"\n";
+    }
+    logText += "\n";
+  }
+  var file = new Blob([logText], {type: 'text/plain'});
+  var a = document.createElement("a");
+  var url = URL.createObjectURL(file);
+  a.href = url;
+  a.download = "log.txt";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);  
+	},0);
+	});
+
+//Display the categorised log in a new window
+$("#displayLogButton").click(function () {
+  // create new window with log entries categorized by employee
+  var logWindow = window.open();
+  logWindow.document.write("<h1>Log Entries Categorized by Employee</h1>");
+  logWindow.document.write("<style>body {background-color: #e6f2ff;}</style>"); // set background color here
+  for (var employee in logByEmployee) {
+    logWindow.document.write("<h2>"+employee+"</h2>");
+    logWindow.document.write("<ul>");
+    for (var i=0; i<logByEmployee[employee].length; i++) {
+      logWindow.document.write(logByEmployee[employee][i]);
+    }
+    logWindow.document.write("</ul>");
+  }
+});
+
+  // authenticate on page load
+  authenticate();
+
+//when accelerometer gets an acceleration reading of 1.5 or more
+function handleExcessiveAcceleration() {
+
+    // Prompt the user for a password and store it
+    handleExcessiveAcceleration.password = prompt("ERROR on pallet "+palletID+"\n\nTo log and stop errror: \n(1)  Input required password below [password]\n(2)  Hold down the on-board button for 3 seconds");
+	
+  // Check if the password is correct (for example, "password")
+  if (handleExcessiveAcceleration.password == "password") {
+    var logStartTime = new Date().toLocaleString();
+    $("#log").append("<li>" + logStartTime+ " ERROR: EXCESSIVE ACCELERATION DETECTED ON PALLET "+palletID+"</li>");
+    
+	// Resume logging
+    var logItem = "\n<li>" + logStartTime+ " pallet: "+palletID+" - excessive accel handled by "+empName+", "+empID+"\n</li>";
+	$("#log").append(logItem);
+	
+	//add log entry to the appropriate employees log
+	logByEmployee[empName].push(logItem);
+	delay(2000);
+	
+	
+  } else {
+    // Incorrect password
+    alert("Incorrect password. Logging will not resume.");
+    var logItem = "\n<li>" + new Date().toLocaleString() + " -logging stopped due to incorrect password entry</li>";
+    $("#log").append(logItem);
+  }
+}
+
+//empty the text area of its instructional message contents when the user clicks on it
+    const notesTextArea = document.getElementById('notes');
+    notesTextArea.addEventListener('click', () => {
+      notesTextArea.value = '';
+    });
+
+  //update the client count - how many tabs of the program are open at any one time
+  socket.on("nClientUpdate", function (msg) {
+    $("#client_count").html(msg.clients);
+  });
+});
+
+    </script>
+  </head>
+  <body>
+  <div class="employee-notes" style="float: right; margin-left: 160px; background-color: #e6f2ff; border-radius: 10px; padding: 10px;">
+    <p>Employee Notes:</p>
+    <textarea id="notes" rows="4" cols="60" onclick="this.value=''">enter additional comments about this pallet here....</textarea><br>
+    <button type="button" id="submitNote">Submit note to the log</button><br><br><br>
+</div>
+
+  <div class="employee-info">
+    <p><span id="client_count">0</span> connected clients</p>
+    <p>Emp: <span id="EmpName">error</span></p>
+    <p>EmpID: <span id="EmpID">error</span></p><br>
+  </div>
+
+  <div class="pallet-info">
+    <p>Pallet Number: <span id="PalletNumber">NULL</span> </p>
+    <p>Accelerometer: <span id="Accelerometer">error</span></p>
+  </div>
+
+    <button type="button" id="CPNbut">Change Pallet Number</button> 
+    <button type="button" id="CEbut">Change Employee</button>
+	
+ 
+
+
+	<div id="log">
+      <ul>
+        <li>Log:</li>
+      </ul>
+    </div>
+	<button type="button" id="Printbut">Print this webpage</button>
+	<button type="button" id="downloadLog">Download Log as displayed (txt file)</button>
+    <button type="button" id="displayLogButton">Display Shift Log</button>
+    <button id="downloadEmployeeLog">Download Shift Log (txt file)</button>
+</body>
+</html>
