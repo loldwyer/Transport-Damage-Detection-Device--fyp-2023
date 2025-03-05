@@ -1,5 +1,5 @@
  /*
-  SensorJSON modified by MGill 2023
+  SensorJSON modified by LDwy 2023
 
   Responds with a JSON string  when "readSensor\n" message is
   received on the Serial port
