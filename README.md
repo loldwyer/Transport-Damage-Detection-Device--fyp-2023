@@ -41,6 +41,8 @@ This system leverages the **Grove Beginner Kit**, which includes:
 - Designed a **web-based dashboard** for real-time data visualization and control.
 - Added **loss control management** features, including logging, employee authentication, and printable/downloadable reports.
 
+![Page with logs](TDD.png)
+
 ## System Workflow
 1. **Damage Detection:** The accelerometer captures motion data, and the microcontroller analyzes it.
 2. **Alert Triggering:** If an impact exceeds the threshold, the system activates a buzzer, LED, and web alert.
